@@ -8,10 +8,11 @@ import { signOut } from 'firebase/auth';
 import { doc, updateDoc, getDoc } from 'firebase/firestore';
 import { useRouter } from 'expo-router';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { Picker } from '@react-native-picker/picker';
 
 export default function ProfileScreen() {
   const colorScheme = useColorScheme();
-  const isDark = colorScheme === 'dark';
+  const isDark = true;
   const [userName, setUserName] = useState('');
   const [editingProfile, setEditingProfile] = useState(false);
   const [editingEmergency, setEditingEmergency] = useState(false);
@@ -32,6 +33,10 @@ export default function ProfileScreen() {
     allergies: 'None',
     medications: 'None',
   });
+
+  const bloodGroups = [
+    'A+', 'A-', 'B+', 'B-', 'O+', 'O-', 'AB+', 'AB-'
+  ];
 
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [editingContactIndex, setEditingContactIndex] = useState<number | null>(null);
@@ -170,6 +175,48 @@ export default function ProfileScreen() {
     }
   };
 
+  const handleDeleteContact = async (index: number) => {
+    Alert.alert(
+      "Delete Contact",
+      "Are you sure you want to delete this contact?",
+      [
+        {
+          text: "Cancel",
+          style: "cancel"
+        },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              if (auth.currentUser) {
+                const newContacts = trustedContacts.filter((_, idx) => idx !== index);
+                const userDocRef = doc(db, 'users', auth.currentUser.uid);
+                await updateDoc(userDocRef, {
+                  trustedContacts: newContacts
+                });
+                setTrustedContacts(newContacts);
+                setIsModalVisible(false);
+                Toast.show({
+                  type: 'success',
+                  text1: 'Contact deleted successfully',
+                  position: 'top',
+                });
+              }
+            } catch (error) {
+              console.error('Failed to delete contact:', error);
+              Toast.show({
+                type: 'error',
+                text1: 'Failed to delete contact',
+                position: 'top',
+              });
+            }
+          }
+        }
+      ]
+    );
+  };
+
   return (
     <ScrollView style={[styles.container, isDark && styles.darkContainer]}>
       <View style={[styles.header, isDark && styles.darkSection]}>
@@ -197,9 +244,14 @@ export default function ProfileScreen() {
               <Text style={[styles.contactName, isDark && styles.darkText]}>{contact.name}</Text>
               <Text style={[styles.contactPhone, isDark && styles.darkSubtext]}>{contact.phone}</Text>
             </View>
-            <TouchableOpacity onPress={() => handleEditContact(index)}>
-              <Ionicons name="create-outline" size={24} color="#1E90FF" />
-            </TouchableOpacity>
+            <View style={styles.contactActions}>
+              <TouchableOpacity onPress={() => handleEditContact(index)} style={styles.actionButton}>
+                <Ionicons name="create-outline" size={24} color="#1E90FF" />
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => handleDeleteContact(index)} style={styles.actionButton}>
+                <Ionicons name="trash-outline" size={24} color="#FF3B30" />
+              </TouchableOpacity>
+            </View>
           </View>
         ))}
         <TouchableOpacity 
@@ -257,18 +309,49 @@ export default function ProfileScreen() {
         <View style={[styles.emergencyCard, isDark && styles.darkCard]}>
           {editingEmergency ? (
             <>
-              {Object.keys(emergencyInfo).map((key) => (
-                <View key={key} style={styles.emergencyItem}>
-                  <Text style={[styles.emergencyLabel, isDark && styles.darkSubtext]}>
-                    {key.charAt(0).toUpperCase() + key.slice(1)}
-                  </Text>
-                  <TextInput
-                    style={[styles.input, isDark && styles.darkInput]}
-                    value={emergencyInfo[key as keyof typeof emergencyInfo]}
-                    onChangeText={(text) => setEmergencyInfo(prev => ({...prev, [key]: text}))}
-                  />
+              <View style={styles.emergencyItem}>
+                <Text style={[styles.emergencyLabel, isDark && styles.darkSubtext]}>
+                  Blood Group
+                </Text>
+                <View style={[styles.pickerContainer, isDark && styles.darkInput]}>
+                  <Picker
+                    selectedValue={emergencyInfo.bloodGroup}
+                    onValueChange={(value) => setEmergencyInfo(prev => ({...prev, bloodGroup: value}))}
+                    style={[styles.picker, isDark && styles.darkText]}
+                    dropdownIconColor={isDark ? '#000' : '#000'}
+                    itemStyle={[styles.pickerItem, isDark && styles.darkPickerItem]}
+                  >
+                    {bloodGroups.map((group) => (
+                      <Picker.Item 
+                        key={group} 
+                        label={group} 
+                        value={group} 
+                        color={isDark ? '#000' : '#000'}
+                      />
+                    ))}
+                  </Picker>
                 </View>
-              ))}
+              </View>
+              <View style={styles.emergencyItem}>
+                <Text style={[styles.emergencyLabel, isDark && styles.darkSubtext]}>
+                  Allergies
+                </Text>
+                <TextInput
+                  style={[styles.input, isDark && styles.darkInput]}
+                  value={emergencyInfo.allergies}
+                  onChangeText={(text) => setEmergencyInfo(prev => ({...prev, allergies: text}))}
+                />
+              </View>
+              <View style={styles.emergencyItem}>
+                <Text style={[styles.emergencyLabel, isDark && styles.darkSubtext]}>
+                  Medications
+                </Text>
+                <TextInput
+                  style={[styles.input, isDark && styles.darkInput]}
+                  value={emergencyInfo.medications}
+                  onChangeText={(text) => setEmergencyInfo(prev => ({...prev, medications: text}))}
+                />
+              </View>
               <TouchableOpacity 
                 style={styles.editButton}
                 onPress={handleUpdateEmergencyInfo}
@@ -587,5 +670,32 @@ const styles = StyleSheet.create({
   },
   saveButton: {
     backgroundColor: '#1E90FF',
+  },
+  pickerContainer: {
+    backgroundColor: '#000000',
+    borderRadius: 8,
+    marginTop: 4,
+    overflow: 'hidden',
+  },
+  picker: {
+    height: 50,
+    width: '100%',
+    color: '#ffffff',
+  },
+  pickerItem: {
+    backgroundColor: '#000000',
+    color: '#fff',
+  },
+  darkPickerItem: {
+    backgroundColor: '#000000',
+    color: '#ffffff',
+  },
+  contactActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  actionButton: {
+    padding: 4,
+    marginLeft: 8,
   },
 });
